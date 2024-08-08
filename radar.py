@@ -25,17 +25,17 @@ class VCI_CAN_OBJ(Structure):
                 ("Data", c_ubyte*8),
                 ("Reserved", c_ubyte*3)
                 ]
+byte_array = c_ubyte * 8
 class Radar_Config:
     def __init__(self):
-        byte_array = c_ubyte * 8
         self.buf = byte_array(0,0,0,0,0,0,0,0)
         self.init_config()
     def init_config(self):
-        self.Set_Radar_MaxDistance_vaild(0)
+        self.Set_Radar_MaxDistance_vaild(1)
         self.Set_Radar_Sensor_ID_valid(0)
         self.RadarCfg_CtrlRelay(0)
         self.RadarCfg_CtrlRelay_valid(0)
-        self.RadarCfg_MaxDistance(0)
+        self.RadarCfg_MaxDistance(105)
         self.RadarCfg_OutputType(0)
         self.RadarCfg_RCS_Threshold_Valid(0)
         self.RadarCfg_RCS_Threshold(0)
@@ -114,6 +114,34 @@ class Radar_Config:
         self.buf[4] &= ~(0x07 << 0)
         self.buf[4] |= (c_ubyte(val).value & 0x07) << 0
  
+#Radar_state class
+class Radar_State:
+    def __init__(self):
+        self.buf = byte_array(0,0,0,0,0,0,0,0)
+    def buffer_filling(self,data):
+        self.buf = data
+    def RadarState_Voltage_Error(self):
+        return (c_ubyte(self.buf[2]).value >> 1) & 0x01
+    def RadarState_SortIndex(self):
+        return (c_ubyte(self.buf[4]).value >> 4) & 0x07
+    def RadarState_RCS_Threshold(self):
+        return (c_ubyte(self.buf[7]).value >> 2) & 0x07
+    def RadarState_SendQualityCfg(self):
+        return (c_ubyte(self.buf[5]).value >> 4) & 0x01
+    def RadarState_SendExtInfoCfg(self):
+        return (c_ubyte(self.buf[5]).value >> 5) & 0x01
+    def RadarState_MotionRxState(self):
+        return (c_ubyte(self.buf[5]).value >> 6) & 0x03
+    def RadarState_OutputTypeCfg(self):
+        return (c_ubyte(self.buf[5]).value >> 2) & 0x03
+    def RadarState_RadarPowerCfg(self):
+        return ((c_ubyte(self.buf[3]).value) & 0x03) << 1 | ((c_ubyte(self.buf[4]).value >> 7) & 0x01)
+    def RadarState_NVMReadStatus(self):
+        return (c_ubyte(self.buf[0]).value >> 6) & 0x01
+    def RadarState_MaxDistanceCfg(self):
+        return 2 * (((c_ushort(self.buf[1]).value & 0xff) << 2) | ((c_ubyte(self.buf[2]).value >> 6) & 0x03))
+
+
 #CanDLLName = './ControlCAN.dll' #把DLL放到对应的目录下
 CanDLLName = './ControlCAN.so' #把SO放到对应的目录下,LINUX
 #canDLL = windll.LoadLibrary('./ControlCAN.dll')
@@ -145,11 +173,14 @@ if ret != STATUS_OK:
     print('调用 VCI_StartCAN1出错\r\n')
  
 radar_config = Radar_Config()
+radar_state = Radar_State()
 
 config = Radar_Config()
+for i in range(8):
+    print(hex(config.buf[i]))
 ubyte_3array = c_ubyte*3
 b = ubyte_3array(0, 0 , 0)
-vci_can_obj = VCI_CAN_OBJ(0x1, 0, 0, 1, 0, 0,  8, config.buf, b)#单次发送
+vci_can_obj = VCI_CAN_OBJ(0x200, 0, 0, 1, 0, 0,  8, config.buf, b)#单次发送
  
 ret = canDLL.VCI_Transmit(VCI_USBCAN2, 0, 0, byref(vci_can_obj), 1)
 if ret == STATUS_OK:
@@ -180,8 +211,14 @@ while 1:#一直循环查询接收。
                 print(hex(rx_vci_can_obj.STRUCT_ARRAY[i].ID),end=" ")
                 print('DataLen：',end="")
                 print(hex(rx_vci_can_obj.STRUCT_ARRAY[i].DataLen),end=" ")
-                print('Data：',end="")
-                print(list(rx_vci_can_obj.STRUCT_ARRAY[i].Data),end=" ")
+                print("\n")
+                if(rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x201):
+                    radar_state.buffer_filling(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
+                    print("Radar_Outputtype: ",radar_state.RadarState_OutputTypeCfg())
+                    print("Radar_Max_Distance:",radar_state.RadarState_MaxDistanceCfg())
+                else:
+                    print('Data：',end="")
+                    print(list(rx_vci_can_obj.STRUCT_ARRAY[i].Data),end=" ")
                 print('\r')
  
 #关闭

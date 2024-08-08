@@ -9,7 +9,7 @@ class Radar_Config:
         self.Set_Radar_Sensor_ID_valid(0)
         self.RadarCfg_CtrlRelay(0)
         self.RadarCfg_CtrlRelay_valid(0)
-        self.RadarCfg_MaxDistance(1023)
+        self.RadarCfg_MaxDistance(522)
         self.RadarCfg_OutputType(0)
         self.RadarCfg_RCS_Threshold_Valid(0)
         self.RadarCfg_RCS_Threshold(0)
@@ -94,24 +94,24 @@ class Radar_State:
         self.buf = data
     def RadarState_Voltage_Error(self,val):
         return (c_ubyte(self.buf[2]).value >> 1) & 0x01
-    def RadarState_Temporary_Error(self,val)
-    def RadarState_Temperature_Error(self,val)
-    def RadarState_Interference(self,val)
-    def RadarState_Persistent_Error(self,val)
-    def RadarState_SortIndex(self,val)
-    def RadarState_RCS_Threshold(self,val)
-    def RadarState_CtrlRelayCfg(self,val)
-    def RadarState_SendQualityCfg(self,val)
-    def RadarState_SendExtInfoCfg(self,val)
-    def RadarState_MotionRxState(self,val)
-    def RadarState_SensorID(self,val)
+    def RadarState_SortIndex(self,val):
+        return (c_ubyte(self.buf[4]).value >> 4) & 0x07
+    def RadarState_RCS_Threshold(self,val):
+        return (c_ubyte(self.buf[7]).value >> 2) & 0x07
+    def RadarState_SendQualityCfg(self,val):
+        return (c_ubyte(self.buf[5]).value >> 4) & 0x01
+    def RadarState_SendExtInfoCfg(self,val):
+        return (c_ubyte(self.buf[5]).value >> 5) & 0x01
+    def RadarState_MotionRxState(self,val):
+        return (c_ubyte(self.buf[5]).value >> 6) & 0x03
     def RadarState_OutputTypeCfg(self,val):
         return (c_ubyte(self.buf[5]).value >> 2) & 0x03
-    def RadarState_RadarPowerCfg(self,val)
-    def RadarState_NVMReadStatus(self,val)
-    def RadarState_NVMwriteStatus(self,val)
+    def RadarState_RadarPowerCfg(self,val):
+        return ((c_ubyte(self.buf[3]).value) & 0x03) << 1 | ((c_ubyte(self.buf[4]).value >> 7) & 0x01)
+    def RadarState_NVMReadStatus(self,val):
+        return (c_ubyte(self.buf[0]).value >> 6) & 0x01
     def RadarState_MaxDistanceCfg(self,val):
-        return ((c_ushort(self.buf[1]).value & 0xff) << 2) | ((c_ubyte(self.buf[2]).value >> 6) & 0x03)
+        return 2 * (((c_ushort(self.buf[1]).value & 0xff) << 2) | ((c_ubyte(self.buf[2]).value >> 6) & 0x03))
         
         
 config = Radar_Config()
