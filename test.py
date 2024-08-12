@@ -112,7 +112,35 @@ class Radar_State:
         return (c_ubyte(self.buf[0]).value >> 6) & 0x01
     def RadarState_MaxDistanceCfg(self,val):
         return 2 * (((c_ushort(self.buf[1]).value & 0xff) << 2) | ((c_ubyte(self.buf[2]).value >> 6) & 0x03))
-        
+class Object_list:
+    def __init__(self):
+        self.object_list = list()
+    def clear_list(self):
+        self.object_list.clear()
+    def insert_object(self,obj):
+        self.object_list.append(obj)
+    def print_object(self):
+        for it in self.object_list:
+            print("ID:",it.id,end=" ")
+            print("long",it.distlong,end=" ")
+            print("lat",it.distlat,end=" ")
+
+    
+
+class Object:
+    def __init__(self):
+        self.id = c_ubyte(0)
+        self.distlong = 0
+        self.distlat = 0
+    def get_obj_ID(self,buf):
+        self.id = (c_ubyte(buf[0]).value) & 0xff
+    def get_obj_distlong(self,buf):
+        self.distlong = (((c_ushort(buf[1]).value & 0xff) << 5) | ((c_ubyte(buf[2]).value >> 3) & 0x1f)) * 0.2 - 500
+    def get_obj_distlat(self,buf):
+        self.distlat = (((c_ushort(buf[2]).value & 0x07) << 8) | ((c_ubyte(buf[2]).value >> 0) & 0xff)) * 0.2 - 204.8
+
+
+
         
 config = Radar_Config()
 for i in range(8):

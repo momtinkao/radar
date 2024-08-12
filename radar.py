@@ -36,7 +36,7 @@ class Radar_Config:
         self.RadarCfg_CtrlRelay(0)
         self.RadarCfg_CtrlRelay_valid(0)
         self.RadarCfg_MaxDistance(105)
-        self.RadarCfg_OutputType(0)
+        self.RadarCfg_OutputType(1)
         self.RadarCfg_RCS_Threshold_Valid(0)
         self.RadarCfg_RCS_Threshold(0)
         self.RadarCfg_StoreInNVM_valid(0)
@@ -140,6 +140,33 @@ class Radar_State:
         return (c_ubyte(self.buf[0]).value >> 6) & 0x01
     def RadarState_MaxDistanceCfg(self):
         return 2 * (((c_ushort(self.buf[1]).value & 0xff) << 2) | ((c_ubyte(self.buf[2]).value >> 6) & 0x03))
+    
+class Object_list:
+    def __init__(self):
+        self.object_list = list()
+    def clear_list(self):
+        self.object_list.clear()
+    def insert_object(self,obj):
+        self.object_list.append(obj)
+    def print_object(self):
+        for it in self.object_list:
+            print("ID:",it.id,end=" ")
+            print("long",it.distlong,end=" ")
+            print("lat",it.distlat,end=" ")
+
+    
+
+class Object:
+    def __init__(self):
+        self.id = c_ubyte(0)
+        self.distlong = 0
+        self.distlat = 0
+    def get_obj_ID(self,buf):
+        self.id = (c_ubyte(buf[0]).value) & 0xff
+    def get_obj_distlong(self,buf):
+        self.distlong = (((c_ushort(buf[1]).value & 0xff) << 5) | ((c_ubyte(buf[2]).value >> 3) & 0x1f)) * 0.2 - 500
+    def get_obj_distlat(self,buf):
+        self.distlat = (((c_ushort(buf[2]).value & 0x07) << 8) | ((c_ubyte(buf[2]).value >> 0) & 0xff)) * 0.2 - 204.8
 
 
 #CanDLLName = './ControlCAN.dll' #把DLL放到对应的目录下
@@ -174,6 +201,9 @@ if ret != STATUS_OK:
  
 radar_config = Radar_Config()
 radar_state = Radar_State()
+obj_list = Object_list()
+obj = Object()
+
 
 config = Radar_Config()
 for i in range(8):
@@ -205,20 +235,20 @@ rx_vci_can_obj = VCI_CAN_OBJ_ARRAY(2500)#结构体数组
 while 1:#一直循环查询接收。
         ret = canDLL.VCI_Receive(VCI_USBCAN2, 0, 0, byref(rx_vci_can_obj.ADDR), 2500, 0)
         if ret > 0:#接收到数据
-            for i in range(0,ret):
-                print('CAN1通道接收成功',end=" ")
-                print('ID：',end="")
-                print(hex(rx_vci_can_obj.STRUCT_ARRAY[i].ID),end=" ")
-                print('DataLen：',end="")
-                print(hex(rx_vci_can_obj.STRUCT_ARRAY[i].DataLen),end=" ")
-                print("\n")
-                if(rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x201):
-                    radar_state.buffer_filling(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
-                    print("Radar_Outputtype: ",radar_state.RadarState_OutputTypeCfg())
-                    print("Radar_Max_Distance:",radar_state.RadarState_MaxDistanceCfg())
-                else:
-                    print('Data：',end="")
-                    print(list(rx_vci_can_obj.STRUCT_ARRAY[i].Data),end=" ")
+            for i in range(0,ret):；
+                if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60a:
+                    print('CAN1通道接收成功',end=" ")
+                    print('ID：',end="")
+                    print(hex(rx_vci_can_obj.STRUCT_ARRAY[i].ID),end=" ")
+                    print('DataLen：',end="")
+                    print(hex(rx_vci_can_obj.STRUCT_ARRAY[i].DataLen),end=" ")
+                    obj_list.print_object()
+                    obj_list.clear_list()
+                elif rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60b:
+                    obj.get_obj_ID(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
+                    obj.get_obj_distlat(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
+                    obj.get_obj_distlong(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
+                    obj_list.insert_object(obj)
                 print('\r')
  
 #关闭
