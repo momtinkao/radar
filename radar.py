@@ -143,7 +143,39 @@ class Radar_State:
         return 2 * (((c_ushort(self.buf[1]).value & 0xff) << 2) | ((c_ubyte(self.buf[2]).value >> 6) & 0x03))
     def RadarState_ExtendedRange(self):
         return (c_ubyte(self.buf[3]).value >> 1) & 0x01
-    
+
+
+class FilterCfg:
+    def __init__(self):
+        self.buf = byte_array(0,0,0,0,0,0,0,0)
+    def FilterCfg_FilterCfg_Min_Class(self,val):
+        self.buf[1] &= ~(0x0f)
+        self.buf[1] |= (c_ubyte(c_ushort(val).value >> 8).value & 0x0f)
+        self.buf[2] &= ~(0xff)
+        self.buf[2] |= (c_ubyte(val).value & 0xff)
+    def FilterCfg_FilterCfg_Max_Class(self,val):
+        self.buf[3] &= ~(0x0f)
+        self.buf[3] |= (c_ubyte(c_ushort(val).value >> 8) & 0x0f)
+        self.buf[4] &= ~(0xff)
+        self.buf[4] |= (c_ubyte(val).value & 0xff)
+    def FilterCfg_FilterCfg_Min_X(self,val):
+        self.buf[1] &= ~(0x1f)
+        self.buf[1] |= (c_ubyte(c_ushort(val).value >> 8).value & 0x1f)
+        self.buf[2] &= ~(0xff)
+        self.buf[2] |= (c_ubyte(val).value & 0xff)
+    def FilterCfg_FilterCfg_Max_X(self,val):
+        self.buf[3] &= ~(0x1f)
+        self.buf[3] |= (c_ubyte(c_ushort(val).value >> 8).value & 0x1f)
+        self.buf[3] &= ~(0xff)
+        self.buf[3] |= (c_ubyte(val).value & 0xff)
+    def FilterCfg_FilterCfg_Index(self,val):
+        self.buf[0] &= ~(0x0f << 3)
+        self.buf[0] |= ((c_ubyte(val).value & 0x0f) << 3)
+    def FilterCfg_FilterCfg_Type(self,val):
+        self.buf[0] &= ~(0x01 << 7)
+        self.buf[0] |= ((c_ubyte(val).value & 0x01) << 7)
+
+
 class Object_list:
     def __init__(self):
         self.mutex = threading.Lock()
