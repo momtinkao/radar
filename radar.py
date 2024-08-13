@@ -2,6 +2,7 @@
 #python3.8.0 64位（python 32位要用32位的DLL/so(Linux)）
 #
 from ctypes import *
+import threading
  
 VCI_USBCAN2 = 4
 STATUS_OK = 1
@@ -36,7 +37,7 @@ class Radar_Config:
         self.RadarCfg_CtrlRelay(0)
         self.RadarCfg_CtrlRelay_valid(0)
         self.RadarCfg_MaxDistance(105)
-        self.RadarCfg_OutputType(1)
+        self.RadarCfg_OutputType(0)
         self.RadarCfg_RCS_Threshold_Valid(0)
         self.RadarCfg_RCS_Threshold(0)
         self.RadarCfg_StoreInNVM_valid(0)
@@ -140,19 +141,31 @@ class Radar_State:
         return (c_ubyte(self.buf[0]).value >> 6) & 0x01
     def RadarState_MaxDistanceCfg(self):
         return 2 * (((c_ushort(self.buf[1]).value & 0xff) << 2) | ((c_ubyte(self.buf[2]).value >> 6) & 0x03))
+    def RadarState_ExtendedRange(self):
+        return (c_ubyte(self.buf[3]).value >> 1) & 0x01
     
 class Object_list:
     def __init__(self):
+        self.mutex = threading.Lock()
+        self.length = 0
         self.object_list = list()
     def clear_list(self):
         self.object_list.clear()
     def insert_object(self,obj):
+        self.mutex.acquire()
         self.object_list.append(obj)
+        self.mutex.release()
     def print_object(self):
-        for it in self.object_list:
-            print("ID:",it.id,end=" ")
-            print("long",it.distlong,end=" ")
-            print("lat",it.distlat,end=" ")
+        self.mutex.acquire()
+        if(self.length == len(self.object_list)):
+            print("length:",self.length)
+            for it in self.object_list:
+                print("ID:",it.id,end=",")
+                print("long:",it.distlong,end=",")
+                print("lat:",it.distlat,end=",")
+                print("vrelong:",it.vrelong,end= ",")
+                print("\n")
+        self.mutex.release()
 
     
 
@@ -161,12 +174,15 @@ class Object:
         self.id = c_ubyte(0)
         self.distlong = 0
         self.distlat = 0
+        self.vrelong = 0
     def get_obj_ID(self,buf):
         self.id = (c_ubyte(buf[0]).value) & 0xff
     def get_obj_distlong(self,buf):
         self.distlong = (((c_ushort(buf[1]).value & 0xff) << 5) | ((c_ubyte(buf[2]).value >> 3) & 0x1f)) * 0.2 - 500
     def get_obj_distlat(self,buf):
         self.distlat = (((c_ushort(buf[2]).value & 0x07) << 8) | ((c_ubyte(buf[2]).value >> 0) & 0xff)) * 0.2 - 204.8
+    def get_obj_vrelong(self,buf):
+        self.vrelong = (c_ushort(buf[4]).value << 2) | ((c_ubyte(buf[5]).value >> 6) & 0x03)
 
 
 #CanDLLName = './ControlCAN.dll' #把DLL放到对应的目录下
@@ -202,12 +218,9 @@ if ret != STATUS_OK:
 radar_config = Radar_Config()
 radar_state = Radar_State()
 obj_list = Object_list()
-obj = Object()
 
 
 config = Radar_Config()
-for i in range(8):
-    print(hex(config.buf[i]))
 ubyte_3array = c_ubyte*3
 b = ubyte_3array(0, 0 , 0)
 vci_can_obj = VCI_CAN_OBJ(0x200, 0, 0, 1, 0, 0,  8, config.buf, b)#单次发送
@@ -230,27 +243,32 @@ class VCI_CAN_OBJ_ARRAY(Structure):
         self.ADDR = self.STRUCT_ARRAY[0]#结构体数组地址  byref()转c地址
     
 rx_vci_can_obj = VCI_CAN_OBJ_ARRAY(2500)#结构体数组
-
+flag = 0
 #print(ret)
-while 1:#一直循环查询接收。
+while 1 and flag != 3:#一直循环查询接收。
         ret = canDLL.VCI_Receive(VCI_USBCAN2, 0, 0, byref(rx_vci_can_obj.ADDR), 2500, 0)
         if ret > 0:#接收到数据
-            for i in range(0,ret):；
-                if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60a:
+            for i in range(0,ret):
+                if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x700:
+                    radar_state.buffer_filling(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
+                    print("Extended Range",radar_state.RadarState_ExtendedRange(),end=" ")
+                elif rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60a:
                     print('CAN1通道接收成功',end=" ")
                     print('ID：',end="")
                     print(hex(rx_vci_can_obj.STRUCT_ARRAY[i].ID),end=" ")
                     print('DataLen：',end="")
                     print(hex(rx_vci_can_obj.STRUCT_ARRAY[i].DataLen),end=" ")
+                    obj_list.length = (c_ubyte(rx_vci_can_obj.STRUCT_ARRAY[i].Data[0]).value)
                     obj_list.print_object()
                     obj_list.clear_list()
+                    flag += 1
                 elif rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60b:
+                    obj = Object()
                     obj.get_obj_ID(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
                     obj.get_obj_distlat(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
                     obj.get_obj_distlong(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
                     obj_list.insert_object(obj)
-                print('\r')
- 
+                print("\r")
 #关闭
 canDLL.VCI_CloseDevice(VCI_USBCAN2, 0) 
 
