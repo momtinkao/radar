@@ -37,7 +37,7 @@ class Radar_Config:
         self.RadarCfg_CtrlRelay(0)
         self.RadarCfg_CtrlRelay_valid(0)
         self.RadarCfg_MaxDistance(105)
-        self.RadarCfg_OutputType(0)
+        self.RadarCfg_OutputType(1)
         self.RadarCfg_RCS_Threshold_Valid(0)
         self.RadarCfg_RCS_Threshold(0)
         self.RadarCfg_StoreInNVM_valid(0)
@@ -155,7 +155,7 @@ class FilterCfg:
         self.buf[2] |= (c_ubyte(val).value & 0xff)
     def FilterCfg_FilterCfg_Max_Class(self,val):
         self.buf[3] &= ~(0x0f)
-        self.buf[3] |= (c_ubyte(c_ushort(val).value >> 8) & 0x0f)
+        self.buf[3] |= (c_ubyte(c_ushort(val).value >> 8).value & 0x0f)
         self.buf[4] &= ~(0xff)
         self.buf[4] |= (c_ubyte(val).value & 0xff)
     def FilterCfg_FilterCfg_Min_X(self,val):
@@ -174,7 +174,13 @@ class FilterCfg:
     def FilterCfg_FilterCfg_Type(self,val):
         self.buf[0] &= ~(0x01 << 7)
         self.buf[0] |= ((c_ubyte(val).value & 0x01) << 7)
-
+    def FilterCfg_FilterCfg_Valid(self,val):
+        self.buf[0] &= ~(0x01 << 1)
+        self.buf[0] |= ((c_ubyte(val).value & 0x01) << 1)
+    def FilterCfg_FilterCfg_Active(self,val):
+        self.buf[0] &= ~(0x01 << 2)
+        self.buf[0] |= ((c_ubyte(val).value & 0x01) << 2)
+ 
 
 class Object_list:
     def __init__(self):
@@ -250,16 +256,24 @@ if ret != STATUS_OK:
 radar_config = Radar_Config()
 radar_state = Radar_State()
 obj_list = Object_list()
+filter_config = FilterCfg()
+filter_config.FilterCfg_FilterCfg_Index(0x7)
+filter_config.FilterCfg_FilterCfg_Type(1)
+filter_config.FilterCfg_FilterCfg_Min_Class(300)
+filter_config.FilterCfg_FilterCfg_Max_Class(500)
+filter_config.FilterCfg_FilterCfg_Valid(1)
+filter_config.FilterCfg_FilterCfg_Active(1)
 
 
 config = Radar_Config()
 ubyte_3array = c_ubyte*3
 b = ubyte_3array(0, 0 , 0)
 vci_can_obj = VCI_CAN_OBJ(0x200, 0, 0, 1, 0, 0,  8, config.buf, b)#单次发送
- 
+vci_can_obj2 = VCI_CAN_OBJ(0x202,0,0,1,0,0,8,filter_config.buf,b)
 ret = canDLL.VCI_Transmit(VCI_USBCAN2, 0, 0, byref(vci_can_obj), 1)
 if ret == STATUS_OK:
     print('CAN1通道发送成功\r\n')
+    canDLL.VCI_Transmit(VCI_USBCAN2,0,0,byref(vci_can_obj2),1)
 if ret != STATUS_OK:
     print('CAN1通道发送失败\r\n')
 
@@ -277,14 +291,11 @@ class VCI_CAN_OBJ_ARRAY(Structure):
 rx_vci_can_obj = VCI_CAN_OBJ_ARRAY(2500)#结构体数组
 flag = 0
 #print(ret)
-while 1 and flag != 3:#一直循环查询接收。
+while 1 and flag != 10:#一直循环查询接收。
         ret = canDLL.VCI_Receive(VCI_USBCAN2, 0, 0, byref(rx_vci_can_obj.ADDR), 2500, 0)
         if ret > 0:#接收到数据
             for i in range(0,ret):
-                if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x700:
-                    radar_state.buffer_filling(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
-                    print("Extended Range",radar_state.RadarState_ExtendedRange(),end=" ")
-                elif rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60a:
+                if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60a:
                     print('CAN1通道接收成功',end=" ")
                     print('ID：',end="")
                     print(hex(rx_vci_can_obj.STRUCT_ARRAY[i].ID),end=" ")
@@ -293,14 +304,14 @@ while 1 and flag != 3:#一直循环查询接收。
                     obj_list.length = (c_ubyte(rx_vci_can_obj.STRUCT_ARRAY[i].Data[0]).value)
                     obj_list.print_object()
                     obj_list.clear_list()
-                    flag += 1
+                    flag+=1
                 elif rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60b:
                     obj = Object()
                     obj.get_obj_ID(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
                     obj.get_obj_distlat(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
                     obj.get_obj_distlong(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
                     obj_list.insert_object(obj)
-                print("\r")
+            print("\r")
 #关闭
 canDLL.VCI_CloseDevice(VCI_USBCAN2, 0) 
 
