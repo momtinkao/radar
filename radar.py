@@ -3,7 +3,9 @@
 #
 from ctypes import *
 import threading
+import logging
 
+logging.basicConfig(level=logging.DEBUG, filename='objlist.log', filemode='a', format='%(asctime)s - %(levelname)s : %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
 
 
@@ -228,11 +230,7 @@ class Object_list:
         if(self.length == len(self.object_list)):
             print("length:",self.length)
             for it in self.object_list:
-                print("ID:",it.id,end=",")
-                print("long:",it.distlong,end=",")
-                print("lat:",it.distlat,end=",")
-                print("vrelong:",it.vrelong,end= ",")
-                print("\n")
+                logging.info("ID:%d, longtitude:%d, latitude:%d, vrelong:%d",it.id,it.dislong,it.distlat,it.vrelong)
         self.mutex.release()
 
     
