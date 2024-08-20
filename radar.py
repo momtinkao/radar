@@ -2,7 +2,13 @@
 #python3.8.0 64位（python 32位要用32位的DLL/so(Linux)）
 #
 from ctypes import *
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import threading
+
+
+
+
  
 VCI_USBCAN2 = 4
 STATUS_OK = 1
