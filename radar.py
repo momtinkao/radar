@@ -3,6 +3,12 @@
 #
 from ctypes import *
 import threading
+import logging
+
+logging.basicConfig(level=logging.DEBUG, filename='objlist.log', filemode='a', format='%(asctime)s - %(levelname)s : %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+
+
+
  
 VCI_USBCAN2 = 4
 STATUS_OK = 1
@@ -147,13 +153,20 @@ class Radar_State:
 
 class FilterCfg:
     def __init__(self):
+        self.index = 0x0
         self.buf = byte_array(0,0,0,0,0,0,0,0)
     def FilterCfg_FilterCfg_Min_Class(self,val):
+        if self.index == 0x1:
+            val = val // 0.1
+        if self.index == 0x7:
+            val = (int)(val // 0.025)
         self.buf[1] &= ~(0x0f)
         self.buf[1] |= (c_ubyte(c_ushort(val).value >> 8).value & 0x0f)
         self.buf[2] &= ~(0xff)
         self.buf[2] |= (c_ubyte(val).value & 0xff)
     def FilterCfg_FilterCfg_Max_Class(self,val):
+        if self.index == 0x7:
+            val = (int)(val // 0.025)
         self.buf[3] &= ~(0x0f)
         self.buf[3] |= (c_ubyte(c_ushort(val).value >> 8).value & 0x0f)
         self.buf[4] &= ~(0xff)
@@ -169,6 +182,7 @@ class FilterCfg:
         self.buf[3] &= ~(0xff)
         self.buf[3] |= (c_ubyte(val).value & 0xff)
     def FilterCfg_FilterCfg_Index(self,val):
+        self.index = val
         self.buf[0] &= ~(0x0f << 3)
         self.buf[0] |= ((c_ubyte(val).value & 0x0f) << 3)
     def FilterCfg_FilterCfg_Type(self,val):
@@ -181,6 +195,24 @@ class FilterCfg:
         self.buf[0] &= ~(0x01 << 2)
         self.buf[0] |= ((c_ubyte(val).value & 0x01) << 2)
  
+
+class FilterStatus:
+    def __init__(self):
+        self.index = 0x0
+        self.buf = byte_array(0,0,0,0,0,0,0,0)
+    def buffer_filling(self,data):
+        self.buf = data
+    def GET_FilterCfg_FilterCfg_Min_Class(self):
+        if self.index == 0x7:
+            min_size = 0.025 * (((c_ushort(self.buf[1]).value & 0x0f) << 8) | (c_ubyte(self.buf[2] & 0xff).value))
+            print("min size:",min_size)
+    def GET_FilterCfg_FilterCfg_Max_Class(self):
+        if self.index == 0x7:
+            max_size = 0.025 * (((c_ushort(self.buf[3]).value & 0x0f) << 8) | (c_ubyte(self.buf[4]).value & 0xff))
+            print("max Size:",max_size)
+    def GET_FilterCfg_FilterCfg_Index(self):
+        self.index = (c_ubyte(self.buf[0]).value >> 3) & 0x0f
+        print("index: ",self.index)
 
 class Object_list:
     def __init__(self):
@@ -198,11 +230,7 @@ class Object_list:
         if(self.length == len(self.object_list)):
             print("length:",self.length)
             for it in self.object_list:
-                print("ID:",it.id,end=",")
-                print("long:",it.distlong,end=",")
-                print("lat:",it.distlat,end=",")
-                print("vrelong:",it.vrelong,end= ",")
-                print("\n")
+                logging.info("ID:%d, longtitude:%d, latitude:%d, vrelong:%d",it.id,it.dislong,it.distlat,it.vrelong)
         self.mutex.release()
 
     
@@ -222,6 +250,8 @@ class Object:
     def get_obj_vrelong(self,buf):
         self.vrelong = (c_ushort(buf[4]).value << 2) | ((c_ubyte(buf[5]).value >> 6) & 0x03)
 
+def get_filterNums(buf):
+    return (c_ubyte(buf[1]).value >> 3)
 
 #CanDLLName = './ControlCAN.dll' #把DLL放到对应的目录下
 CanDLLName = './ControlCAN.so' #把SO放到对应的目录下,LINUX
@@ -253,19 +283,19 @@ if ret == STATUS_OK:
 if ret != STATUS_OK:
     print('调用 VCI_StartCAN1出错\r\n')
  
-radar_config = Radar_Config()
-radar_state = Radar_State()
+filter_status = FilterStatus()
 obj_list = Object_list()
 filter_config = FilterCfg()
 filter_config.FilterCfg_FilterCfg_Index(0x7)
 filter_config.FilterCfg_FilterCfg_Type(1)
-filter_config.FilterCfg_FilterCfg_Min_Class(300)
-filter_config.FilterCfg_FilterCfg_Max_Class(500)
+filter_config.FilterCfg_FilterCfg_Min_Class(3)
+filter_config.FilterCfg_FilterCfg_Max_Class(10)
 filter_config.FilterCfg_FilterCfg_Valid(1)
 filter_config.FilterCfg_FilterCfg_Active(1)
 
 
 config = Radar_Config()
+
 ubyte_3array = c_ubyte*3
 b = ubyte_3array(0, 0 , 0)
 vci_can_obj = VCI_CAN_OBJ(0x200, 0, 0, 1, 0, 0,  8, config.buf, b)#单次发送
@@ -291,7 +321,7 @@ class VCI_CAN_OBJ_ARRAY(Structure):
 rx_vci_can_obj = VCI_CAN_OBJ_ARRAY(2500)#结构体数组
 flag = 0
 #print(ret)
-while 1 and flag != 10:#一直循环查询接收。
+while 1:#一直循环查询接收。
         ret = canDLL.VCI_Receive(VCI_USBCAN2, 0, 0, byref(rx_vci_can_obj.ADDR), 2500, 0)
         if ret > 0:#接收到数据
             for i in range(0,ret):
@@ -304,13 +334,21 @@ while 1 and flag != 10:#一直循环查询接收。
                     obj_list.length = (c_ubyte(rx_vci_can_obj.STRUCT_ARRAY[i].Data[0]).value)
                     obj_list.print_object()
                     obj_list.clear_list()
-                    flag+=1
-                elif rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60b:
+                if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60b:
                     obj = Object()
                     obj.get_obj_ID(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
                     obj.get_obj_distlat(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
                     obj.get_obj_distlong(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
                     obj_list.insert_object(obj)
+                if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x203:
+                    filter_nums = get_filterNums(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
+                    print("filter_nums:",filter_nums)
+                if(rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x204):
+                    filter_status.buffer_filling(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
+                    filter_status.GET_FilterCfg_FilterCfg_Index()
+                    filter_status.GET_FilterCfg_FilterCfg_Min_Class()
+                    filter_status.GET_FilterCfg_FilterCfg_Max_Class()
+
             print("\r")
 #关闭
 canDLL.VCI_CloseDevice(VCI_USBCAN2, 0) 
