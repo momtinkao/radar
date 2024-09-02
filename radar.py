@@ -539,5 +539,5 @@ if ret2 == STATUS_OK:
 if ret == STATUS_OK:
     print("Filter2 OK\r\n")
 '''
-ani = animation.FuncAnimation(fig, update, init_func=init, interval=800)
+ani = animation.FuncAnimation(fig, update, init_func=init, interval=75)
 plt.show()
