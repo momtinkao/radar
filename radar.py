@@ -203,6 +203,10 @@ class FilterCfg:
             val = (int)(val // 0.1)
         if self.index == 0x7:
             val = (int)(val // 0.025)
+        if self.index == 0xb:
+            val = (int)(val // 0.0315)
+        if self.index == 0xd:
+            val = (int)(val // 0.0315)
         self.buf[1] &= ~(0x0f)
         self.buf[1] |= (c_ubyte(c_ushort(val).value >> 8).value & 0x0f)
         self.buf[2] &= ~(0xff)
@@ -213,6 +217,10 @@ class FilterCfg:
             val = (int)(val // 0.025)
         if self.index == 0x1:
             val = (int)(val // 0.1)
+        if self.index == 0xb:
+            val = (int)(val // 0.0315)
+        if self.index == 0xd:
+            val = (int)(val // 0.0315)
         self.buf[3] &= ~(0x0f)
         self.buf[3] |= (c_ubyte(c_ushort(val).value >> 8).value & 0x0f)
         self.buf[4] &= ~(0xff)
@@ -271,6 +279,16 @@ class FilterStatus:
             min_prob = (((c_ushort(self.buf[1]).value & 0x0f) << 8) |
                         (c_ubyte(self.buf[2] & 0xff).value))
             print(f"min prob:{min_prob}")
+        if self.index == 0xb:
+            min_vyrightleft = 0.0315 * ((
+                (c_ushort(self.buf[1]).value & 0x0f) << 8) |
+                                        (c_ubyte(self.buf[2] & 0xff).value))
+            print(f"min vyright2left:{min_vyrightleft}")
+        if self.index == 0xd:
+            min_vyleftright = 0.0315 * ((
+                (c_ushort(self.buf[1]).value & 0x0f) << 8) |
+                                        (c_ubyte(self.buf[2] & 0xff).value))
+            print(f"min vyleft2right:{min_vyleftright}")
 
     def GET_FilterCfg_FilterCfg_Max_Class(self):
         if self.index == 0x7:
@@ -281,6 +299,16 @@ class FilterStatus:
             max_prob = (((c_ushort(self.buf[3]).value & 0x0f) << 8) |
                         (c_ubyte(self.buf[4] & 0xff).value))
             print(f"min prob:{max_prob}")
+        if self.index == 0xb:
+            max_vyrightleft = 0.0315 * ((
+                (c_ushort(self.buf[3]).value & 0x0f) << 8) |
+                                        (c_ubyte(self.buf[4]).value & 0xff))
+            print("max vyright2left:", max_vyrightleft)
+        if self.index == 0xd:
+            max_vyleftright = 0.0315 * ((
+                (c_ushort(self.buf[3]).value & 0x0f) << 8) |
+                                        (c_ubyte(self.buf[4]).value & 0xff))
+            print("max vyleft2right:", max_vyleftright)
 
     def GET_FilterCfg_FilterCfg_Index(self):
         self.index = (c_ubyte(self.buf[0]).value >> 3) & 0x0f
@@ -295,8 +323,6 @@ class FilterStatus:
 
 
 points = [(0, 0, 'a')]
-
-prev = time.time()
 
 
 class Object_list:
@@ -316,17 +342,12 @@ class Object_list:
         self.mutex.release()
 
     def print_object(self):
-        global prev
         self.mutex.acquire()
         global points
         points = [(0, 0, 'a')]
         for it in self.object_list:
             if it != None:
                 points.append((it.distlat, it.distlong, str(it.id)))
-                logging.info(
-                    f"id:{it.id}, lat:{it.distlat}, long:{it.distlong}")
-        print(f"diff:{time.time()-prev}")
-        prev = time.time()
         self.mutex.release()
 
 
@@ -351,9 +372,9 @@ class Object:
         self.distlat = (((c_ushort(buf[2]).value & 0x07) << 8) |
                         ((c_ubyte(buf[3]).value >> 0) & 0xff)) * 0.2 - 204.6
 
-    def get_obj_vrelong(self, buf):
-        self.vrelong = ((c_ushort(buf[4]).value << 2) |
-                        ((c_ubyte(buf[5]).value >> 6) & 0x03)) * 0.25 - 128
+    def get_obj_vrelat(self, buf):
+        self.vrelong = (((c_ushort(buf[5]).value & 0x3f) << 3) |
+                        ((c_ubyte(buf[6]).value >> 5) & 0x07)) * 0.25 - 64
 
 
 def get_filterNums(buf):
@@ -366,8 +387,8 @@ scat = ax.scatter([], [], s=100)
 
 
 def init():
-    ax.set_xlim(-10, 10)
-    ax.set_ylim(0, 10)
+    ax.set_xlim(-50, 50)
+    ax.set_ylim(0, 50)
     for text in texts:
         text.remove()
     texts.clear()
@@ -376,7 +397,7 @@ def init():
 
 def update(frame):
     global points
-    x, y, ids = zip(*points)
+    x, y, vrels = zip(*points)
 
     # 更新散點圖的位置
     scat.set_offsets(list(zip(x, y)))
@@ -387,8 +408,8 @@ def update(frame):
     texts.clear()
 
     # 添加新的文字標籤
-    for (xi, yi, id) in zip(x, y, ids):
-        text = ax.text(xi, yi, f'{id}', fontsize=12, ha='right', va='bottom')
+    for (xi, yi, vrel) in zip(x, y, vrels):
+        text = ax.text(xi, yi, f'{vrel}', fontsize=12, ha='right', va='bottom')
         texts.append(text)
 
     return scat, *texts
@@ -448,6 +469,15 @@ def receive():
                                  2500, 0)
         if ret > 0:  #接收到数据
             for i in range(0, ret):
+                '''
+                if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x201:
+                    radar_status = Radar_State()
+                    radar_status.buffer_filling(
+                        rx_vci_can_obj.STRUCT_ARRAY[i].Data)
+                    print(
+                        f"radar max distance:{radar_status.RadarState_MaxDistanceCfg()}"
+                    )
+                '''
                 if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60a:
                     obj_list.length = (c_ubyte(
                         rx_vci_can_obj.STRUCT_ARRAY[i].Data[0]).value)
@@ -493,9 +523,19 @@ def receive():
                     filter_status.GET_FilterCfg_FilterCfg_Min_Class()
                     filter_status.GET_FilterCfg_FilterCfg_Max_Class()
                     filter_status.Get_FilterCfg_FilterCfg_Active()
-                    if filter_status.index == 0x08:
+                    if filter_status.index < 0xe:
+                        filter_config = FilterCfg()
+                        filter_config.FilterCfg_FilterCfg_Index(
+                            filter_status.index + 1)
+                        filter_config.FilterCfg_FilterCfg_Type(1)
+                        filter_config.FilterCfg_FilterCfg_Min_Class(0)
+                        filter_config.FilterCfg_FilterCfg_Max_Class(0)
+                        filter_config.FilterCfg_FilterCfg_Valid(0)
+                        filter_config.FilterCfg_FilterCfg_Active(0)
+                        filter_object = VCI_CAN_OBJ(0x202, 0, 0, 1, 0, 0, 8,
+                                                    filter_config.buf, b)
                         canDLL.VCI_Transmit(VCI_USBCAN2, 0, 0,
-                                            byref(vci_can_obj3), 1)
+                                            byref(filter_object), 1)
 
 
 r = threading.Thread(target=receive)
@@ -506,17 +546,17 @@ filter_status = FilterStatus()
 filter_config_size = FilterCfg()
 filter_config_size.FilterCfg_FilterCfg_Index(0x7)
 filter_config_size.FilterCfg_FilterCfg_Type(1)
-filter_config_size.FilterCfg_FilterCfg_Min_Class(4)
-filter_config_size.FilterCfg_FilterCfg_Max_Class(7)
+filter_config_size.FilterCfg_FilterCfg_Min_Class(0)
+filter_config_size.FilterCfg_FilterCfg_Max_Class(100)
 filter_config_size.FilterCfg_FilterCfg_Valid(1)
-filter_config_size.FilterCfg_FilterCfg_Active(0)
+filter_config_size.FilterCfg_FilterCfg_Active(1)
 
 #信賴率filter
 filter_config_dist = FilterCfg()
-filter_config_dist.FilterCfg_FilterCfg_Index(0x7)
+filter_config_dist.FilterCfg_FilterCfg_Index(0x8)
 filter_config_dist.FilterCfg_FilterCfg_Type(1)
-filter_config_dist.FilterCfg_FilterCfg_Min_Class(5)
-filter_config_dist.FilterCfg_FilterCfg_Max_Class(50)
+filter_config_dist.FilterCfg_FilterCfg_Min_Class(3)
+filter_config_dist.FilterCfg_FilterCfg_Max_Class(7)
 filter_config_dist.FilterCfg_FilterCfg_Valid(1)
 filter_config_dist.FilterCfg_FilterCfg_Active(1)
 
@@ -540,4 +580,5 @@ if ret == STATUS_OK:
     print("Filter2 OK\r\n")
 '''
 ani = animation.FuncAnimation(fig, update, init_func=init, interval=75)
+
 plt.show()
