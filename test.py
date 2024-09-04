@@ -8,6 +8,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import time
+import signal
+import sys
+
+
+path = 'obj.log'
+f = open(path,'w')
 
 logging.basicConfig(level=logging.DEBUG,
                     filename='objlist.log',
@@ -376,8 +382,6 @@ class Object:
         self.vrelong = (((c_ushort(buf[5]).value & 0x3f) << 3) |
                         ((c_ubyte(buf[6]).value >> 5) & 0x07)) * 0.25 - 64
 
-class Cluster:
-    
 
 
 def get_filterNums(buf):
@@ -482,94 +486,24 @@ def receive():
                     )
                 '''
                 if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60a:
-                    obj_list.length = (c_ubyte(
-                        rx_vci_can_obj.STRUCT_ARRAY[i].Data[0]).value)
-                    meas_counter = (c_ushort(
-                        rx_vci_can_obj.STRUCT_ARRAY[i].Data[1]).value << 8) | (
-                            c_ubyte(
-                                rx_vci_can_obj.STRUCT_ARRAY[i].Data[2]).value)
-                    obj_list.print_object()
-                    obj_list.clear_list()
+                    byte = bytearray(rx_vci_can_obj.STRUCT_ARRAY[i].Data[0:4])
+                    f.write(f"({time.time()}) can0 60A#{byte.hex()}\n")
                 if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60b:
-                    obj = Object()
-                    obj.get_obj_ID(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
-                    obj.get_obj_distlat(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
-                    obj.get_obj_distlong(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
-                    obj.get_obj_vrelong(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
-                    obj_list.insert_object(obj)
+                    byte = bytearray(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
+                    f.write(f"({time.time()}) can0 60B#{byte.hex()}\n")
                 if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60c:
-                    obj_id = obj_id = c_ubyte(
-                        rx_vci_can_obj.STRUCT_ARRAY[i].Data[0]).value
-                    state = (
-                        c_ubyte(rx_vci_can_obj.STRUCT_ARRAY[i].Data[6]).value
-                        >> 2) & 0x07
-                    if obj_list.object_list[obj_id] != None:
-                        obj_list.object_list[obj_id].state = state
+                    byte = bytearray(rx_vci_can_obj.STRUCT_ARRAY[i].Data[0:7])
+                    f.write(f"({time.time()}) can0 60C#{byte.hex()}\n")
                 if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60D:
-                    obj_id = c_ubyte(
-                        rx_vci_can_obj.STRUCT_ARRAY[i].Data[0]).value
-                    if obj_list.object_list[obj_id] != None:
-                        obj_list.object_list[obj_id].type = (c_ubyte(
-                            rx_vci_can_obj.STRUCT_ARRAY[i].Data[3]).value
-                                                             & 0x07)
-                        points.append((obj_list.object_list[obj_id].distlat,
-                                       obj_list.object_list[obj_id].distlong,
-                                       str(obj_list.object_list[obj_id].id)))
-                if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x203:
-                    filter_nums = get_filterNums(
-                        rx_vci_can_obj.STRUCT_ARRAY[i].Data)
-                    print("filter_nums:", filter_nums)
-                if (rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x204):
-                    filter_status.buffer_filling(
-                        rx_vci_can_obj.STRUCT_ARRAY[i].Data)
-                    filter_status.GET_FilterCfg_FilterCfg_Index()
-                    filter_status.GET_FilterCfg_FilterCfg_Min_Class()
-                    filter_status.GET_FilterCfg_FilterCfg_Max_Class()
-                    filter_status.Get_FilterCfg_FilterCfg_Active()
-                    if filter_status.index < 0xe:
-                        filter_config = FilterCfg()
-                        filter_config.FilterCfg_FilterCfg_Index(
-                            filter_status.index + 1)
-                        filter_config.FilterCfg_FilterCfg_Type(1)
-                        filter_config.FilterCfg_FilterCfg_Min_Class(0)
-                        filter_config.FilterCfg_FilterCfg_Max_Class(0)
-                        filter_config.FilterCfg_FilterCfg_Valid(0)
-                        filter_config.FilterCfg_FilterCfg_Active(0)
-                        filter_object = VCI_CAN_OBJ(0x202, 0, 0, 1, 0, 0, 8,
-                                                    filter_config.buf, b)
-                        canDLL.VCI_Transmit(VCI_USBCAN2, 0, 0,
-                                            byref(filter_object), 1)
+                    byte = bytearray(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
+                    f.write(f"({time.time()}) can0 60D#{byte.hex()}\n")
+
+def signal_handler(sig, frame):
+    print('You pressed Ctrl+C!')
+    f.close()
+    sys.exit(0)
 
 
-def handle_object_list(ret,msg):
-    for i in range(ret):
-        if msg[i].ID == 0x60a:
-            obj_list.length = (c_ubyte(
-                msg[i].Data[0]).value)
-            obj_list.print_object()
-            obj_list.clear_list()
-        if msg[i].ID == 0x60b:
-            obj = Object()
-            obj.get_obj_ID(msg[i].Data)
-            obj.get_obj_distlat(msg[i].Data)
-            obj.get_obj_distlong(msg[i].Data)
-            obj.get_obj_vrelong(msg[i].Data)
-            obj_list.insert_object(obj)
-        if msg[i].ID == 0x60c:
-            obj_id = obj_id = c_ubyte(
-                msg[i].Data[0]).value
-            state = (
-                c_ubyte(msg[i].Data[6]).value
-                >> 2) & 0x07
-            if obj_list.object_list[obj_id] != None:
-                obj_list.object_list[obj_id].state = state
-        if msg[i].ID == 0x60D:
-            obj_id = c_ubyte(
-                msg[i].Data[0]).value
-            if obj_list.object_list[obj_id] != None:
-                obj_list.object_list[obj_id].type = (c_ubyte(
-                    msg[i].Data[3]).value& 0x07)
-def handle_cluster_list(ret,msg):
     
     
 r = threading.Thread(target=receive)
@@ -613,6 +547,4 @@ if ret2 == STATUS_OK:
 if ret == STATUS_OK:
     print("Filter2 OK\r\n")
 '''
-ani = animation.FuncAnimation(fig, update, init_func=init, interval=75)
-
-plt.show()
+signal.signal(signal.SIGINT, signal_handler)
