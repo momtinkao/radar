@@ -487,16 +487,16 @@ def receive():
                 '''
                 if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60a:
                     byte = bytearray(rx_vci_can_obj.STRUCT_ARRAY[i].Data[0:4])
-                    f.write(f"({time.time()}) can0 60A#{byte.hex()}\n")
+                    f.write(f"({format(time.time(),'.6f')}) can0 60A#{byte.hex()}\n")
                 if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60b:
                     byte = bytearray(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
-                    f.write(f"({time.time()}) can0 60B#{byte.hex()}\n")
+                    f.write(f"({format(time.time(),'.6f')}) can0 60B#{byte.hex()}\n")
                 if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60c:
                     byte = bytearray(rx_vci_can_obj.STRUCT_ARRAY[i].Data[0:7])
-                    f.write(f"({time.time()}) can0 60C#{byte.hex()}\n")
+                    f.write(f"({format(time.time(),'.6f')}) can0 60C#{byte.hex()}\n")
                 if rx_vci_can_obj.STRUCT_ARRAY[i].ID == 0x60D:
                     byte = bytearray(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
-                    f.write(f"({time.time()}) can0 60D#{byte.hex()}\n")
+                    f.write(f"({format(time.time(),'.6f')}) can0 60D#{byte.hex()}\n")
 
 def signal_handler(sig, frame):
     print('You pressed Ctrl+C!')
