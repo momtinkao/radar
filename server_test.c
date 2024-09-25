@@ -19,7 +19,7 @@ int main()
     socklen_t client_len = sizeof(client_addr);
     struct sockaddr_in sin;
     socklen_t len = sizeof(sin);
-    char recv_buf[BUFFER_SIZE];
+    unsigned char recv_buf[BUFFER_SIZE];
     char send_buf[BUFFER_SIZE];
     int ret;
 
@@ -128,8 +128,31 @@ int main()
             printf("發送響應成功\n");
         }
         recv_bytes = recv(cfd, recv_buf, sizeof(recv_buf), 0);
-        recv_buf[recv_bytes] = '\0';
-        printf("recv %s\n", recv_buf);
+        printf("size:%d\n", recv_bytes);
+        int index = 0;
+        unsigned int dirc = ((unsigned int)recv_buf[index + 0]) << 24 | ((unsigned int)recv_buf[index + 1] << 16) | ((unsigned int)recv_buf[index + 2] << 8) | (unsigned int)recv_buf[index + 3];
+        index += 4;
+        unsigned int hour = ((unsigned int)recv_buf[index + 0]) << 24 | ((unsigned int)recv_buf[index + 1] << 16) | ((unsigned int)recv_buf[index + 2] << 8) | (unsigned int)recv_buf[index + 3];
+        index += 4;
+        unsigned int min = ((unsigned int)recv_buf[index + 0]) << 24 | ((unsigned int)recv_buf[index + 1] << 16) | ((unsigned int)recv_buf[index + 2] << 8) | (unsigned int)recv_buf[index + 3];
+        index += 4;
+        unsigned int output = ((unsigned int)recv_buf[index + 0]) << 24 | ((unsigned int)recv_buf[index + 1] << 16) | ((unsigned int)recv_buf[index + 2] << 8) | (unsigned int)recv_buf[index + 3];
+        float second = *(float *)(&output);
+
+        index += 4;
+        unsigned int count = ((unsigned int)recv_buf[index + 0]) << 24 | ((unsigned int)recv_buf[index + 1] << 16) | ((unsigned int)recv_buf[index + 2] << 8) | (unsigned int)recv_buf[index + 3];
+        printf("dirc:%u, hour:%u, min:%u, second:%f,count:%u\n", dirc, hour, min, second, count);
+        index += 4;
+        for (int i = 0; i < count; i++)
+        {
+            unsigned long int output2 = ((unsigned long int)recv_buf[index + 0]) << 56 | ((unsigned long int)recv_buf[index + 1] << 48) | ((unsigned long int)recv_buf[index + 2] << 40) | ((unsigned long int)recv_buf[index + 3] << 32) | ((unsigned long int)recv_buf[index + 4] << 24) | ((unsigned long int)recv_buf[index + 5] << 16) | ((unsigned long int)recv_buf[index + 6] << 8) | (unsigned long int)recv_buf[index + 7];
+            double lat = *(double *)(&output2);
+            index += 8;
+            output2 = ((unsigned long int)recv_buf[index + 0]) << 56 | ((unsigned long int)recv_buf[index + 1] << 48) | ((unsigned long int)recv_buf[index + 2] << 40) | ((unsigned long int)recv_buf[index + 3] << 32) | ((unsigned long int)recv_buf[index + 4] << 24) | ((unsigned long int)recv_buf[index + 5] << 16) | ((unsigned long int)recv_buf[index + 6] << 8) | (unsigned long int)recv_buf[index + 7];
+            double lon = *(double *)(&output2);
+            index += 8;
+            printf("lat:%lf, long:%lf\n", lat, lon);
+        }
     }
 
     close(serverlisten_fd);
