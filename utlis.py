@@ -213,6 +213,13 @@ class Filters:
                     float(config_file[name+"_Max"]))
                 filter.FilterCfg_FilterCfg_Type(int(config_file["OutputType"]))
                 self.filters.append(filter)
+            else:
+                filter = FilterCfg()
+                filter.FilterCfg_FilterCfg_Index(i)
+                filter.FilterCfg_FilterCfg_Valid(1)
+                filter.FilterCfg_FilterCfg_Active(0)
+                filter.FilterCfg_FilterCfg_Type(int(config_file["OutputType"]))
+                self.filters.append(filter)
 
 
 class FilterCfg:
@@ -223,20 +230,26 @@ class FilterCfg:
         self.buf = self.byte_array(0, 0, 0, 0, 0, 0, 0, 0)
 
     def FilterCfg_FilterCfg_Min_Class(self, val):
-        if self.index == FILTER_DISTANCE:
-            val = (int)(val // 0.1)
         if self.index == FILTER_SIZE:
             val = (int)(val // 0.025)
+        if self.index == FILTER_DISTANCE:
+            val = (int)(val // 0.1)
         if self.index == FILTER_VXONCOME:
+            val = (val * 1000) / 3600
             val = (int)(val // 0.0315)
         if self.index == FILTER_VXDEPART:
+            val = (val * 1000 / 3600)
             val = (int)(val // 0.0315)
         if self.index == FILTER_VRELONCOME:
+            val = (val * 1000) / 3600
             val = (int)(val // 0.0315)
         if self.index == FILTER_VRELDEPART:
+            val = (val * 1000) / 3600
             val = (int)(val // 0.0315)
         if self.index == FILTER_RCS:
             val = (int)((val + 50) // 0.025)
+        else:
+            val = (int)(val)
         self.buf[1] &= ~(0x0f)
         self.buf[1] |= (c_ubyte(c_ushort(val).value >> 8).value & 0x0f)
         self.buf[2] &= ~(0xff)
@@ -248,15 +261,21 @@ class FilterCfg:
         if self.index == FILTER_DISTANCE:
             val = (int)(val // 0.1)
         if self.index == FILTER_VXONCOME:
+            val = (val * 1000) / 3600
             val = (int)(val // 0.0315)
         if self.index == FILTER_VXDEPART:
+            val = (val * 1000 / 3600)
             val = (int)(val // 0.0315)
         if self.index == FILTER_VRELONCOME:
+            val = (val * 1000) / 3600
             val = (int)(val // 0.0315)
         if self.index == FILTER_VRELDEPART:
+            val = (val * 1000) / 3600
             val = (int)(val // 0.0315)
         if self.index == FILTER_RCS:
             val = (int)((val + 50) // 0.025)
+        else:
+            val = (int)(val)
         self.buf[3] &= ~(0x0f)
         self.buf[3] |= (c_ubyte(c_ushort(val).value >> 8).value & 0x0f)
         self.buf[4] &= ~(0xff)
@@ -320,17 +339,17 @@ class FilterStatus:
         if self.index == FILTER_VXONCOME:
             min_vyrightleft = 0.0315 * ((
                 (c_ushort(self.buf[1]).value & 0x0f) << 8) |
-                (c_ubyte(self.buf[2] & 0xff).value))
+                (c_ubyte(self.buf[2] & 0xff).value)) * 3.6
             print(f"min voncocme:{min_vyrightleft}")
         if self.index == FILTER_VXDEPART:
             min_vyleftright = 0.0315 * ((
                 (c_ushort(self.buf[1]).value & 0x0f) << 8) |
-                (c_ubyte(self.buf[2] & 0xff).value))
+                (c_ubyte(self.buf[2] & 0xff).value)) * 3.6
             print(f"min vdepart:{min_vyleftright}")
         if self.index == FILTER_VRELONCOME:
             min_come_vrel = 0.0315 * ((
                 (c_ushort(self.buf[1]).value & 0x0f) << 8) |
-                (c_ubyte(self.buf[2]).value & 0xff))
+                (c_ubyte(self.buf[2]).value & 0xff)) * 3.6
             print("min come_vrel:", min_come_vrel)
         if self.index == FILTER_RCS:
             min_RCS = 0.025 * ((
@@ -350,22 +369,22 @@ class FilterStatus:
         if self.index == FILTER_VXONCOME:
             max_vyrightleft = 0.0315 * ((
                 (c_ushort(self.buf[3]).value & 0x0f) << 8) |
-                (c_ubyte(self.buf[4]).value & 0xff))
+                (c_ubyte(self.buf[4]).value & 0xff)) * 3.6
             print("max voncome:", max_vyrightleft)
         if self.index == FILTER_VXDEPART:
             max_vyleftright = 0.0315 * ((
                 (c_ushort(self.buf[3]).value & 0x0f) << 8) |
-                (c_ubyte(self.buf[4]).value & 0xff))
+                (c_ubyte(self.buf[4]).value & 0xff)) * 3.6
             print("max vdepart:", max_vyleftright)
         if self.index == FILTER_VRELONCOME:
             max_come_vrel = 0.0315 * ((
                 (c_ushort(self.buf[3]).value & 0x0f) << 8) |
-                (c_ubyte(self.buf[4]).value & 0xff))
+                (c_ubyte(self.buf[4]).value & 0xff)) * 3.6
             print("max come_vrel:", max_come_vrel)
         if self.index == FILTER_VRELDEPART:
             max_dep_vrel = 0.0315 * ((
                 (c_ushort(self.buf[3]).value & 0x0f) << 8) |
-                (c_ubyte(self.buf[4]).value & 0xff))
+                (c_ubyte(self.buf[4]).value & 0xff)) * 3.6
             print("max dep_vrel:", max_dep_vrel)
         if self.index == FILTER_RCS:
             max_RCS = 0.025 * ((
@@ -389,7 +408,8 @@ class Object:
     def __init__(self):
         self.id = 0
         self.geo = [1000, 1000]
-        self.vrelong = 1000
+        self.distance = [0, 0]
+        self.vrelong = 0
         self.type = None
         self.state = 6
 
@@ -404,9 +424,16 @@ class Object:
         self.geo[:] = convert_local_to_geographic(22.9986053690291, 120.23304276012627,
                                                   lat_distance, lon_distance, 95)
 
+    def get_distance(self, buf):
+        distlong = (((c_ushort(buf[1]).value & 0xff) << 5) |
+                    ((c_ubyte(buf[2]).value >> 3) & 0x1f)) * 0.2 - 500
+        distlat = (((c_ushort(buf[2]).value & 0x07) << 8) |
+                   ((c_ubyte(buf[3]).value >> 0) & 0xff)) * 0.2 - 204.6
+        self.distance[:] = [distlat, distlong]
+
     def get_obj_vrelong(self, buf):
-        self.vrelong = (((((c_ushort(buf[4]).value & 0xff) << 8) |
-                        ((c_ubyte(buf[5]).value >> 6) & 0x03)) * 0.25 - 128) * 3.6)
+        self.vrelong = ((((c_ushort(buf[4]).value & 0xff) << 2) |
+                        ((c_ubyte(buf[5]).value >> 6) & 0x03)) * 0.25 - 128) * 3.6
 
 
 class Object_list:

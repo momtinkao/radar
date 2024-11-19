@@ -19,12 +19,14 @@ byte_array = c_ubyte * 8
 texts = []
 type_name = ["point", "car", "truck", "pedestrian",
              "motor", "bicycle", "wide", "other"]
+'''
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 message = b"hello,Server"
 server_address = ('172.30.114.34', 12346)
 client_address = ('172.30.112.1', 10006)
 client_socket.bind(client_address)
 client_socket.sendto(message, server_address)
+'''
 obj_list = Object_list()
 
 
@@ -70,7 +72,7 @@ OBJECT_EXTEND = 0x60d
 FILTER_STATE_HEADER = 0x203
 FILTER_STATE_CFG = 0x204
 
-
+'''
 def send_object(objlist: Object_list):
     objlist.mutex.acquire()
     global points
@@ -85,12 +87,14 @@ def send_object(objlist: Object_list):
                 struct.pack("!ddI", it.distlat, it.distlong, it.type)
     client_socket.sendto(byte, server_address)
     objlist.mutex.release()
+'''
 
 
 def filling_object(data) -> Object:
     obj = Object()
     obj.get_obj_vrelong(data)
     obj.get_obj_coordinate(data)
+    obj.get_distance(data)
     obj.get_obj_ID(data)
     return obj
 
@@ -145,7 +149,10 @@ def init(parser: configparser.ConfigParser):
 if __name__ == "__main__":
     config = configparser.ConfigParser()
     config.read("radar.ini")
-    init(config["DEFAULT"])
+    t = threading.Thread(
+        target=init, args=(config["DEFAULT"],))
+    t.start()
+    t.join()
     animated_point = AnimatedPoint()
 
     def receive():
@@ -154,25 +161,21 @@ if __name__ == "__main__":
                                      2500, 0)
             if ret > 0:  # 接收到数据
                 for i in range(0, ret):
-                    if rx_vci_can_obj.STRUCT_ARRAY[i].ID == RADAR_STATE:
-                        radar_state = Radar_State()
-                        radar_state.buffer_filling(
-                            rx_vci_can_obj.STRUCT_ARRAY[i].Data)
-                        print("output:{}, max_distance:{}".format(
-                            radar_state.RadarState_OutputTypeCfg(), radar_state.RadarState_MaxDistanceCfg()))
                     if rx_vci_can_obj.STRUCT_ARRAY[i].ID == OBJECT_STATUS:
                         for it in obj_list.object_list:
                             if it != None:
                                 animated_point.add_point(
-                                    it.distlat, it.distlong, type_name[it.type])
+                                    it.distance[0], it.distance[1], "type:{}, vrel:{}".format(type_name[it.type], it.vrelong))
                         obj_list.length = (c_ubyte(
                             rx_vci_can_obj.STRUCT_ARRAY[i].Data[0]).value)
+                        obj_list.clear_list()
                     if rx_vci_can_obj.STRUCT_ARRAY[i].ID == OBJECT_GENERAL:
                         obj = filling_object(
                             rx_vci_can_obj.STRUCT_ARRAY[i].Data)
                         obj_list.insert_object(obj)
                     if rx_vci_can_obj.STRUCT_ARRAY[i].ID == OBJECT_EXTEND:
-                        update_objtype(obj_list)
+                        update_objtype(
+                            obj_list, rx_vci_can_obj.STRUCT_ARRAY[i].Data)
     r = threading.Thread(target=receive)
     r.start()
     animated_point.show()
