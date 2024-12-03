@@ -3,6 +3,8 @@
 from ctypes import *
 from Can import VCI_CAN_OBJ, VCI_CAN_OBJ_ARRAY, VCI_INIT_CONFIG
 import threading
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 from movie_writer import AnimatedPoint
 import time
 import datetime
@@ -14,7 +16,8 @@ from utlis import *
 VCI_USBCAN2 = 4
 STATUS_OK = 1
 
-
+path = 'obj5.log'
+f = open(path, 'w')
 byte_array = c_ubyte * 8
 texts = []
 type_name = ["point", "car", "truck", "pedestrian",
@@ -153,29 +156,52 @@ if __name__ == "__main__":
         target=init, args=(config["DEFAULT"],))
     t.start()
     t.join()
-    animated_point = AnimatedPoint()
+    ani = AnimatedPoint()
 
     def receive():
+        global points
+        new_points = []
         while True:  # 一直循环查询接收。
             ret = canDLL.VCI_Receive(VCI_USBCAN2, 0, 0, byref(rx_vci_can_obj.ADDR),
                                      2500, 0)
             if ret > 0:  # 接收到数据
                 for i in range(0, ret):
+                    if rx_vci_can_obj.STRUCT_ARRAY[i].ID == RADAR_STATE:
+                        byte = bytearray(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
+                        f.write(
+                            f"({format(time.time(),'.6f')}) can0 201#{byte.hex()}\n")
                     if rx_vci_can_obj.STRUCT_ARRAY[i].ID == OBJECT_STATUS:
+                        byte = bytearray(
+                            rx_vci_can_obj.STRUCT_ARRAY[i].Data[0:4])
+                        new_points.clear()
                         for it in obj_list.object_list:
                             if it != None:
-                                animated_point.add_point(
-                                    it.distance[0], it.distance[1], "type:{}, vrel:{}".format(type_name[it.type], it.vrelong))
+                                new_points.append((
+                                    it.distance[0], it.distance[1], "{}".format(int(it.vrelong)), "{}".format(type_name[it.type])))
+                        ani.update_points(new_points)
                         obj_list.length = (c_ubyte(
                             rx_vci_can_obj.STRUCT_ARRAY[i].Data[0]).value)
+                        f.write(
+                            f"({format(time.time(),'.6f')}) can0 60A#{byte.hex()}\n")
                         obj_list.clear_list()
                     if rx_vci_can_obj.STRUCT_ARRAY[i].ID == OBJECT_GENERAL:
                         obj = filling_object(
                             rx_vci_can_obj.STRUCT_ARRAY[i].Data)
                         obj_list.insert_object(obj)
+                        byte = bytearray(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
+                        f.write(
+                            f"({format(time.time(),'.6f')}) can0 60B#{byte.hex()}\n")
+                    if rx_vci_can_obj.STRUCT_ARRAY[i].ID == OBJECT_QUALITY:
+                        byte = bytearray(
+                            rx_vci_can_obj.STRUCT_ARRAY[i].Data[0:7])
+                        f.write(
+                            f"({format(time.time(),'.6f')}) can0 60C#{byte.hex()}\n")
                     if rx_vci_can_obj.STRUCT_ARRAY[i].ID == OBJECT_EXTEND:
                         update_objtype(
                             obj_list, rx_vci_can_obj.STRUCT_ARRAY[i].Data)
+                        byte = bytearray(rx_vci_can_obj.STRUCT_ARRAY[i].Data)
+                        f.write(
+                            f"({format(time.time(),'.6f')}) can0 60D#{byte.hex()}\n")
     r = threading.Thread(target=receive)
     r.start()
-    animated_point.show()
+    ani.show()
