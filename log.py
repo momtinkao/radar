@@ -2,6 +2,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import time
 from datetime import datetime
+import os
 
 
 class DynamicFileHandler(RotatingFileHandler):
@@ -12,16 +13,23 @@ class DynamicFileHandler(RotatingFileHandler):
     def change_file(self, new_filename):
         """Change the log file name"""
         # Close current file
-        self.close()
+        try:
+            # Close current file
+            self.close()
 
-        # Update the base filename
-        self.baseFilename = new_filename
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(new_filename) or '.', exist_ok=True)
 
-        # Create new file with updated name
-        self.stream = self._open()
+            # Update the base filename
+            self.baseFilename = new_filename
+
+            # Create new file with updated name
+            self.stream = self._open()
+        except Exception as e:
+            print(f"Error changing log file: {e}")
 
 
-def setup_logger(initial_log_file='app.log', max_bytes=0, backup_count=24, level=logging.INFO):
+def setup_logger(log_dir='logs', max_bytes=0, backup_count=24, level=logging.INFO):
     """
     Set up a logger with rotating file handler
 
@@ -32,6 +40,14 @@ def setup_logger(initial_log_file='app.log', max_bytes=0, backup_count=24, level
     - level: logging level
     """
     # Create logger
+
+    # Create logs directory
+    os.makedirs(log_dir, exist_ok=True)
+
+    # Generate initial log filename
+    initial_log_file = os.path.join(
+        log_dir, f'{datetime.now().strftime("%Y-%m-%d %H%M%S")}.log')
+
     logger = logging.getLogger('DynamicRotatingLogger')
     logger.setLevel(level)
 
@@ -58,7 +74,7 @@ def setup_logger(initial_log_file='app.log', max_bytes=0, backup_count=24, level
     return logger, handler
 
 
-def change_file_by_time(handler, interval_hours=30):
+def change_file_by_time(handler, interval_hours=60):
     """
     Change log file based on time interval
 
@@ -69,10 +85,13 @@ def change_file_by_time(handler, interval_hours=30):
     """
     while True:
         try:
-            # Create new filename with timestamp
-            new_filename = f'{datetime.now().strftime("%Y-%m-%d %H")}.log'
-            handler.change_file(new_filename)
             time.sleep(interval_hours)
+            new_filename = os.path.join(
+                'logs',
+                f'{datetime.now().strftime("%Y-%m-%d %H%M%S")}.log'
+            )
+            handler.change_file(new_filename)
+            print(f"Rotated file to {new_filename}")
         except Exception as e:
             print(f"Error changing file: {e}")
             break
@@ -84,8 +103,7 @@ if __name__ == '__main__':
 
     # Set up logger
     logger, handler = setup_logger(
-        initial_log_file="{}.log".format(
-            datetime.now().strftime("%Y-%m-%d %H")),
+        log_dir='logs',
         max_bytes=0,
         backup_count=24
     )
@@ -94,7 +112,7 @@ if __name__ == '__main__':
         # Start file rotation thread (change file every minute)
         rotation_thread = threading.Thread(
             target=change_file_by_time,
-            args=(handler, 1)
+            args=(handler, 60)
         )
         rotation_thread.start()
 
