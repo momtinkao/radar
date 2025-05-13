@@ -77,7 +77,6 @@ FILTER_STATE_CFG = 0x204
 
 def filling_object(data) -> Object:
     obj = Object(location=[lat,lon])
-    print(obj.loc)
     obj.get_obj_vrelong(data)
     obj.get_obj_coordinate(data)
     obj.get_distance(data)
@@ -201,9 +200,13 @@ if __name__ == "__main__":
                             obj_list, rx_vci_can_obj.STRUCT_ARRAY[i].Data)
     r = threading.Thread(target=receive)
     r.start()
+    # ... (其他程式碼) ...
+
+    # 啟動日誌檔案輪替執行緒
     rotation_thread = threading.Thread(
             target=change_file_by_time,
-            args=(handler, 3600)
+            args=(handler, 'logs'), # 將日誌目錄傳遞給執行緒
+            daemon=True # 建議設為守護執行緒
     )
     rotation_thread.start()
     #animated_point.show()
