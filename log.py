@@ -1,7 +1,7 @@
 import logging
 from logging.handlers import RotatingFileHandler
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 
@@ -34,19 +34,18 @@ def setup_logger(log_dir='logs', max_bytes=0, backup_count=24, level=logging.INF
     Set up a logger with rotating file handler
 
     Parameters:
-    - initial_log_file: initial name of the log file
-    - max_bytes: maximum size of each log file in bytes
-    - backup_count: number of backup files to keep
+    - log_dir: directory for log files
+    - max_bytes: maximum size of each log file in bytes (0 for no rotation by size)
+    - backup_count: number of backup files to keep (if max_bytes > 0)
     - level: logging level
     """
-    # Create logger
-
     # Create logs directory
     os.makedirs(log_dir, exist_ok=True)
 
-    # Generate initial log filename
+    # Generate initial log filename based on the current hour (整點)
+    now = datetime.now()
     initial_log_file = os.path.join(
-        log_dir, f'{datetime.now().strftime("%Y-%m-%d %H")}.log')
+        log_dir, f'{now.strftime("%Y-%m-%d %H")}.log')
 
     logger = logging.getLogger('DynamicRotatingLogger')
     logger.setLevel(level)
@@ -57,10 +56,13 @@ def setup_logger(log_dir='logs', max_bytes=0, backup_count=24, level=logging.INF
     )
 
     # Create handler
+    # Note: max_bytes and backup_count from RotatingFileHandler are less relevant
+    # if we are primarily rotating based on time by changing the filename.
+    # If max_bytes is set to 0, size-based rotation is disabled.
     handler = DynamicFileHandler(
         filename=initial_log_file,
         mode='a+',
-        maxBytes=max_bytes,
+        maxBytes=max_bytes, # 設定為 0 以禁用基於大小的輪替，如果主要依賴時間
         backupCount=backup_count,
         encoding='utf-8'
     )
@@ -74,59 +76,72 @@ def setup_logger(log_dir='logs', max_bytes=0, backup_count=24, level=logging.INF
     return logger, handler
 
 
-def change_file_by_time(handler, interval_hours=3600):
+def change_file_by_time(handler, log_dir='logs'):
     """
-    Change log file based on time interval
+    Change log file at the beginning of every hour.
 
     Parameters:
     - handler: the logging handler
-    - base_name: base name for log files
-    - interval_seconds: interval in seconds to change files
+    - log_dir: directory for log files
     """
     while True:
         try:
-            time.sleep(interval_hours)
+            now = datetime.now()
+            # 計算下一個整點
+            next_hour = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+            
+            # 計算到下一個整點的秒數
+            wait_seconds = (next_hour - now).total_seconds()
+            
+            print(f"Current time: {now.strftime('%Y-%m-%d %H:%M:%S')}. Waiting for {wait_seconds:.0f} seconds until next hour ({next_hour.strftime('%Y-%m-%d %H')}:00:00) for log rotation.")
+            time.sleep(wait_seconds)
+            
+            # 到達整點，準備新的檔案名稱
+            new_filename_time = datetime.now() # 應該非常接近 next_hour
             new_filename = os.path.join(
-                'logs',
-                f'{datetime.now().strftime("%Y-%m-%d %H")}.log'
+                log_dir,
+                f'{new_filename_time.strftime("%Y-%m-%d %H")}.log'
             )
             handler.change_file(new_filename)
-            print(f"Rotated file to {new_filename}")
+            print(f"Rotated log file to {new_filename} at {new_filename_time.strftime('%Y-%m-%d %H:%M:%S')}")
+
         except Exception as e:
-            print(f"Error changing file: {e}")
+            print(f"Error in change_file_by_time: {e}")
+            # 發生錯誤時，等待一段時間再試，避免快速連續失敗
+            time.sleep(60)
+        except KeyboardInterrupt:
+            print("Log rotation thread stopped by user.")
             break
 
-'''
-# Example usage
+
 if __name__ == '__main__':
     import threading
 
-    # Set up logger
+    # 設定日誌
     logger, handler = setup_logger(
-        log_dir='logs',
-        max_bytes=0,
-        backup_count=24
+        log_dir='logs_test', # 使用測試目錄
+        max_bytes=0,      # 禁用基於大小的輪替，主要依賴時間
+        backup_count=0    # 如果 max_bytes 為 0，此參數無效
     )
 
     try:
-        # Start file rotation thread (change file every minute)
+        # 啟動日誌檔案輪替執行緒
         rotation_thread = threading.Thread(
             target=change_file_by_time,
-            args=(handler, 60)
+            args=(handler, 'logs_test'), # 傳遞日誌目錄
+            daemon=True # 設置為守護執行緒，這樣主程式結束時它也會結束
         )
         rotation_thread.start()
 
-        # Simulate logging
-        logger.info('Starting logging with time-based file changes')
+        logger.info('開始記錄，日誌檔案將在每個整點更新。')
+        print("主程式開始記錄，按 Ctrl+C 停止。")
 
+        count = 0
         while True:
-            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            logger.info(f'Log entry at {current_time}')
-            time.sleep(1)  # Log every second
+            current_time_log = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            logger.info(f'日誌記錄 {count} at {current_time_log}')
+            count += 1
+            time.sleep(10) # 每 10 秒記錄一次
 
     except KeyboardInterrupt:
-        print('Logging stopped')
-
-# Alternative usage without threading
-
-'''
+        print('主程式記錄停止。')
