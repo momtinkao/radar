@@ -76,7 +76,8 @@ FILTER_STATE_CFG = 0x204
 
 
 def filling_object(data) -> Object:
-    obj = Object()
+    obj = Object(location=[lat,lon])
+    print(obj.loc)
     obj.get_obj_vrelong(data)
     obj.get_obj_coordinate(data)
     obj.get_distance(data)
@@ -137,6 +138,8 @@ def init(parser: configparser.ConfigParser):
 if __name__ == "__main__":
     config = configparser.ConfigParser()
     config.read("radar.ini")
+    lat = float(config["LOCATION"]["Lat"])
+    lon = float(config["LOCATION"]["Lon"])
     t = threading.Thread(
         target=init, args=(config["DEFAULT"],))
     t.start()
