@@ -405,7 +405,8 @@ class FilterStatus:
 
 class Object:
 
-    def __init__(self):
+    def __init__(self, location = [22.99550506233693, 120.23706082899179]):
+        self.loc = location
         self.id = 0
         self.geo = [1000, 1000]
         self.distance = [0, 0]
@@ -425,7 +426,7 @@ class Object:
                         ((c_ubyte(buf[2]).value >> 3) & 0x1f)) * 0.2 - 500
         lon_distance = (((c_ushort(buf[2]).value & 0x07) << 8) |
                         ((c_ubyte(buf[3]).value >> 0) & 0xff)) * 0.2 - 204.6
-        self.geo[:] = calculate_destination_coordinates2(22.99550506233693, 120.23706082899179,
+        self.geo[:] = calculate_destination_coordinates2(self.loc[0], self.loc[1],
                                                   lat_distance, lon_distance, 179)
 
     def get_distance(self, buf):
