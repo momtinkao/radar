@@ -109,6 +109,9 @@
 * `radar.ini`: 雷達參數、濾波器與位置的設定檔。
 * `libcontrolcan.so` / `ControlCAN.dll`: (使用者提供) 用於 CAN 通訊的外部函式庫。
 
+
+##雷達相關文件
+* 雲端連結:https://drive.google.com/drive/u/0/folders/1YFao-appYF70aJp7UgTYSt7rUsumYX9t
 ## 疑難排解與注意事項
 
 * **CAN 函式庫不匹配:** 請確保 `libcontrolcan.so` 或 `ControlCAN.dll` 與您的作業系統 (32位元/64位元) 和您的特定 CAN 介面硬體相容。腳本嘗試載入 `./libcontrolcan.so`，如有必要，請在 `radar.py` 中調整路徑或檔名。
