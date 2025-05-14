@@ -110,7 +110,7 @@
 * `libcontrolcan.so` / `ControlCAN.dll`: (使用者提供) 用於 CAN 通訊的外部函式庫。
 
 
-##雷達相關文件
+## 雷達相關文件
 * 雲端連結:https://drive.google.com/drive/u/0/folders/1YFao-appYF70aJp7UgTYSt7rUsumYX9t
 ## 疑難排解與注意事項
 
